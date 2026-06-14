@@ -1,0 +1,503 @@
+make golden image steps -
+# LiveKit Golden Image Build Runbook
+
+## Purpose
+
+Create a standardized Ubuntu Golden Image for:
+
+* LiveKit Server
+* LiveKit SIP
+* Voice AI Agents
+* Redis Services
+* Docker Workloads
+
+Target Compliance:
+
+* CIS Benchmark Level 1
+* Production Ready
+* Cloud Deployable
+* Reusable Across Environments
+
+---
+
+# Phase 1: Base Operating System
+
+## Supported OS
+
+Preferred:
+
+* Ubuntu Server 24.04 LTS
+
+Fallback:
+
+* Ubuntu Server 22.04 LTS
+
+---
+
+# Phase 2: Initial Server Validation
+
+Verify:
+
+```bash
+cat /etc/os-release
+uname -r
+hostnamectl
+```
+
+Check Resources:
+
+```bash
+lscpu
+free -h
+df -h
+```
+
+Check Networking:
+
+```bash
+ip addr
+ip route
+ss -tulpn
+```
+
+---
+
+# Phase 3: System Update
+
+```bash
+apt update
+apt upgrade -y
+apt autoremove -y
+```
+
+Reboot if kernel updated.
+
+---
+
+# Phase 4: Install Base Packages
+
+```bash
+apt install -y \
+curl \
+wget \
+git \
+vim \
+jq \
+unzip \
+net-tools \
+htop \
+chrony \
+rsyslog \
+software-properties-common
+```
+
+---
+
+# Phase 5: Configure Time Synchronization
+
+```bash
+systemctl enable chrony
+systemctl start chrony
+chronyc tracking
+```
+
+---
+
+# Phase 6: Docker Installation
+
+```bash
+curl -fsSL https://get.docker.com | bash
+```
+
+Enable:
+
+```bash
+systemctl enable docker
+systemctl start docker
+```
+
+Verify:
+
+```bash
+docker version
+```
+
+---
+
+# Phase 7: Docker Hardening
+
+Create:
+
+```bash
+mkdir -p /etc/docker
+```
+
+File:
+
+```bash
+nano /etc/docker/daemon.json
+```
+
+Content:
+
+```json
+{
+  "live-restore": true,
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m",
+    "max-file": "10"
+  }
+}
+```
+
+Restart:
+
+```bash
+systemctl restart docker
+```
+
+---
+
+# Phase 8: SSH Hardening
+
+Edit:
+
+```bash
+nano /etc/ssh/sshd_config
+```
+
+Configure:
+
+```ini
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+MaxAuthTries 3
+ClientAliveInterval 300
+ClientAliveCountMax 2
+```
+
+Validate:
+
+```bash
+sshd -t
+```
+
+Restart:
+
+```bash
+systemctl restart ssh
+```
+
+---
+
+# Phase 9: Firewall Configuration
+
+Install:
+
+```bash
+apt install ufw -y
+```
+
+Configure:
+
+```bash
+ufw default deny incoming
+ufw default allow outgoing
+
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow 7880/tcp
+ufw allow 5349/tcp
+ufw allow 50000:60000/udp
+
+ufw enable
+```
+
+Verify:
+
+```bash
+ufw status verbose
+```
+
+---
+
+# Phase 10: Fail2Ban
+
+Install:
+
+```bash
+apt install fail2ban -y
+```
+
+Enable:
+
+```bash
+systemctl enable fail2ban
+```
+
+Create:
+
+```bash
+nano /etc/fail2ban/jail.local
+```
+
+Content:
+
+```ini
+[sshd]
+enabled=true
+maxretry=3
+findtime=600
+bantime=3600
+```
+
+Restart:
+
+```bash
+systemctl restart fail2ban
+```
+
+Verify:
+
+```bash
+fail2ban-client status
+```
+
+---
+
+# Phase 11: Auditd
+
+Install:
+
+```bash
+apt install auditd audispd-plugins -y
+```
+
+Enable:
+
+```bash
+systemctl enable auditd
+systemctl start auditd
+```
+
+Verify:
+
+```bash
+auditctl -s
+```
+
+---
+
+# Phase 12: Automatic Security Updates
+
+Install:
+
+```bash
+apt install unattended-upgrades -y
+```
+
+Enable:
+
+```bash
+dpkg-reconfigure unattended-upgrades
+```
+
+Verify:
+
+```bash
+systemctl status unattended-upgrades
+```
+
+---
+
+# Phase 13: Kernel Hardening
+
+Create:
+
+```bash
+nano /etc/sysctl.d/99-security.conf
+```
+
+Add:
+
+```ini
+net.ipv4.tcp_syncookies=1
+net.ipv4.conf.all.accept_redirects=0
+net.ipv4.conf.default.accept_redirects=0
+net.ipv4.conf.all.send_redirects=0
+net.ipv4.conf.default.send_redirects=0
+net.ipv4.conf.all.rp_filter=1
+kernel.randomize_va_space=2
+```
+
+Apply:
+
+```bash
+sysctl --system
+```
+
+---
+
+# Phase 14: Monitoring
+
+Install Node Exporter:
+
+```bash
+apt install prometheus-node-exporter -y
+```
+
+Enable:
+
+```bash
+systemctl enable prometheus-node-exporter
+```
+
+Install Fluent Bit (Optional):
+
+```bash
+apt install fluent-bit -y
+```
+
+---
+
+# Phase 15: CIS Benchmark Validation
+
+Install Lynis:
+
+```bash
+apt install lynis -y
+```
+
+Run:
+
+```bash
+lynis audit system
+```
+
+Target:
+
+```text
+Hardening Index > 80
+```
+
+Store Reports:
+
+```bash
+cp /var/log/lynis.log /root/
+cp /var/log/lynis-report.dat /root/
+```
+
+---
+
+# Phase 16: LiveKit Prerequisites
+
+Required Ports:
+
+```text
+22/tcp
+80/tcp
+443/tcp
+7880/tcp
+5349/tcp
+50000-60000/udp
+```
+
+Required Services:
+
+```text
+Docker
+Chrony
+SSH
+UFW
+Fail2Ban
+Auditd
+```
+
+---
+
+# Phase 17: Pre-Golden Image Cleanup
+
+Remove Temporary Data:
+
+```bash
+apt autoremove -y
+apt clean
+```
+
+Clean Logs:
+
+```bash
+truncate -s 0 /var/log/*.log
+```
+
+Clear History:
+
+```bash
+history -c
+```
+
+Cloud Init Cleanup:
+
+```bash
+cloud-init clean
+```
+
+Remove Secrets:
+
+```text
+SSH Host Keys
+TLS Certificates
+API Keys
+OpenAI Keys
+Deepgram Keys
+Redis Passwords
+LiveKit Secrets
+```
+
+---
+
+# Phase 18: Golden Image Validation
+
+Verify:
+
+```bash
+docker version
+ufw status
+fail2ban-client status
+auditctl -s
+chronyc tracking
+lynis audit system
+```
+
+Expected Result:
+
+* CIS Level 1 Compliant
+* Docker Ready
+* LiveKit Ready
+* Security Hardened
+* Monitoring Enabled
+* Cloud Deployable
+
+---
+
+# Deliverables
+
+1. livekit-golden-v1
+2. voice-agent-golden-v1
+3. sip-gateway-golden-v1
+
+Image Formats:
+
+* AMI
+* QCOW2
+* OVA
+* OVF
+
+Versioning Example:
+
+livekit-golden-v1.0
+livekit-golden-v1.1
+livekit-golden-v1.2
