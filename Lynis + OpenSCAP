@@ -1,0 +1,9 @@
+apt install openscap-scanner scap-security-guide -y
+
+oscap xccdf eval \
+--profile xccdf_org.ssgproject.content_profile_cis_level1_server \
+--results cis-results.xml \
+--report cis-report.html \
+/usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds.xml
+
+cis-report.html
